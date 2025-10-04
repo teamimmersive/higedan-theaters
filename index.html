@@ -1,93 +1,244 @@
-<!-- CSVローダー：最後に置く（renderなど既存JSの後） -->
-<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"
-        integrity="sha384-qk7n9x2x8qN0Tq6D7y7ZpC8xH0Qq5mJx0kqQZ7ZqK7v6sM1b8X8T3l8Y8qZq0p7L"
-        crossorigin="anonymous"></script>
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>上映館リスト（CSV自動反映・タブ式）</title>
+<style>
+  :root {
+    --bg:#0c0f14; --card:#12161d; --text:#e7ebf3; --muted:#8a93a6; --accent:#4f8cff; --border:#222838; --chip:#1a1f2b;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Noto Sans JP","Hiragino Kaku Gothic ProN","Yu Gothic",Meiryo,sans-serif}
+  header{position:sticky;top:0;z-index:10;background:rgba(12,15,20,.96);backdrop-filter:blur(6px);padding:12px 14px;border-bottom:1px solid var(--border)}
+  h1{margin:0;font-size:18px}
+  .tabs{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+  .tab{padding:8px 12px;border:1px solid var(--border);border-radius:999px;background:var(--chip);color:var(--text);cursor:pointer;font-size:14px}
+  .tab.active{background:var(--accent);border-color:var(--accent);color:#fff}
+  .filters{display:grid;gap:8px;padding:10px 14px;border-bottom:1px solid var(--border)}
+  .filter-row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  select,input[type="search"]{width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:12px;background:#0f141d;color:var(--text)}
+  main{padding:12px 14px}
+  .group{margin-top:16px}
+  .group h2{font-size:15px;color:var(--muted);margin:0 0 8px}
+  .grid{display:grid;gap:10px;grid-template-columns:1fr}
+  @media (min-width:720px){.grid{grid-template-columns:1fr 1fr}}
+  @media (min-width:1024px){.grid{grid-template-columns:1fr 1fr 1fr}}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:12px;display:grid;gap:6px}
+  .title{font-weight:600}
+  .meta{color:var(--muted);font-size:13px}
+  .badges{display:flex;gap:6px;flex-wrap:wrap}
+  .badge{font-size:12px;padding:2px 8px;background:#1a2233;border:1px solid #22304b;border-radius:999px}
+  a.btn{display:inline-block;text-decoration:none;color:#fff;background:var(--accent);padding:7px 10px;border-radius:10px;font-size:13px}
+  footer{padding:14px;color:var(--muted);font-size:12px;border-top:1px solid var(--border)}
+  #csv-debug{position:fixed;left:8px;bottom:8px;max-width:90vw;background:#1f2937;color:#fff;padding:8px 10px;border-radius:8px;font:12px/1.4 system-ui,-apple-system;z-index:9999;opacity:.95}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>上映館リスト（CSV自動反映・タブ式）</h1>
+  <div class="tabs" id="tabs">
+    <button type="button" class="tab active" data-tab="all">ALL</button>
+    <button type="button" class="tab" data-tab="cinema">Dolby Cinema</button>
+    <button type="button" class="tab" data-tab="atmos">Dolby Atmos</button>
+    <button type="button" class="tab" data-tab="axk">Dolby Atmos×4K</button>
+    <button type="button" class="tab" data-tab="ch71">7.1ch</button>
+    <button type="button" class="tab" data-tab="k4">4K</button>
+  </div>
+</header>
+
+<div class="filters">
+  <div class="filter-row">
+    <select id="prefSelect"><option value="">都道府県（すべて）</option></select>
+    <input id="q" type="search" placeholder="劇場名・住所で検索…">
+  </div>
+</div>
+
+<main id="content">
+  <div class="group"><h2>読み込み中…</h2></div>
+</main>
+
+<footer>
+  ※ タブ（ALL / Dolby Cinema / Dolby Atmos / Dolby Atmos×4K / 7.1ch / 4K）切替＋都道府県・検索で絞り込みできます。
+</footer>
+
+<!-- Papa Parse（CSVパーサ） -->
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js" crossorigin="anonymous"></script>
+
+<!-- ===== CSVローダー（あなたのCSV URLで取得） ===== -->
 <script>
-  // ★そのままでOK：あなたのCSV公開URL
+  // ★ あなたのCSV公開URL（そのままでOK）
   var SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vShtDnZUCsyJKxq1mUB8Hgid98ngAWYAcgEwhCg2MaV3cqbmyRsEsbr2eyZ8XFdyW00ZdsB2BkJhVuC/pub?gid=1453087675&single=true&output=csv";
 
-  // ミニデバッグ（左下に状況表示）
   function dbg(msg){
-    var el=document.getElementById('csv-debug');
-    if(!el){ el=document.createElement('div'); el.id='csv-debug';
-      el.style.cssText='position:fixed;left:8px;bottom:8px;max-width:92vw;background:#1f2937;color:#fff;padding:8px 10px;border-radius:8px;font:12px/1.4 system-ui,-apple-system;z-index:9999;opacity:.95';
-      document.body.appendChild(el);
-    }
+    var el=document.getElementById('csv-debug'); if(!el){el=document.createElement('div');el.id='csv-debug';document.body.appendChild(el);}
     el.textContent='[CSV] '+msg;
   }
-
-  // 列名ゆらぎ対応
-  function nHead(s){return String(s||'').replace(/\u3000/g,' ').trim().toLowerCase();}
-  function findIdx(h, aliases){var H=h.map(nHead);for(var i=0;i<aliases.length;i++){var k=nHead(aliases[i]);var j=H.indexOf(k);if(j!==-1)return j;}return-1;}
-  var ALIAS={
-    pref:["都道府県","都道府県名","県名","道府県","都道府県 "],
-    name:["劇場名","映画館","映画館名","シアター","館名"],
-    addr:["住所","所在地","住所1","住所_全文","address"],
-    url:["URL","url","リンク","公式","公式サイト","サイトURL"],
-    atmos:["Dolby Atmos","Atmos","ドルビーアトモス","アトモス"],
-    ch71:["7.1ch","7.1 ch","7.1CH","7_1ch","7-1ch"],
-    k4:["4K","4Ｋ","４Ｋ","4k"],
-    other:["other","備考","メモ","注記"],
-    seats:["座席数","席数","シート数","キャパ","収容人数"]
-  };
-
   function normalizePref(p){
     p=String(p||'').trim(); if(!p) return '';
     var short={"東京":"東京都","大阪":"大阪府","京都":"京都府","沖縄":"沖縄県","北海道":"北海道"};
     if(short[p]) return short[p];
-    var last=p[p.length-1]; if(["都","道","府","県"].indexOf(last)===-1 && p!=="北海道") return p+"県";
+    var last=p.charAt(p.length-1); if(["都","道","府","県"].indexOf(last)===-1 && p!=="北海道") return p+"県";
     return p;
   }
   function displayPref(pref){
     if(!pref) return ""; if(pref==="北海道") return "北海道";
     if(pref==="東京都") return "東京"; if(pref==="大阪府") return "大阪"; if(pref==="京都府") return "京都";
-    var last=pref[pref.length-1]; if(["都","道","府","県"].indexOf(last)!==-1) return pref.slice(0,-1);
+    var last=pref.charAt(pref.length-1); if(["都","道","府","県"].indexOf(last)!==-1) return pref.slice(0,-1);
     return pref;
   }
-
-  function buildData(header, rows){
-    var ip=findIdx(header,ALIAS.pref), iname=findIdx(header,ALIAS.name), iaddr=findIdx(header,ALIAS.addr),
-        iurl=findIdx(header,ALIAS.url), iat=findIdx(header,ALIAS.atmos), i71=findIdx(header,ALIAS.ch71),
-        i4k=findIdx(header,ALIAS.k4), ioth=findIdx(header,ALIAS.other), iseat=findIdx(header,ALIAS.seats);
-
-    if(ip===-1||iname===-1){ dbg("必須列（都道府県/劇場名）が見つかりません"); }
+  function nHead(s){return String(s||'').replace(/\u3000/g,' ').trim().toLowerCase();}
+  function findIdx(h, aliases){
+    var H=[]; for(var i=0;i<h.length;i++){H.push(nHead(h[i]));}
+    for(var j=0;j<aliases.length;j++){var k=nHead(aliases[j]); var pos=H.indexOf(k); if(pos!==-1) return pos;}
+    return -1;
+  }
+  var ALIAS={
+    pref:["都道府県","都道府県名","県名","道府県"],
+    name:["劇場名","映画館","映画館名","シアター","館名"],
+    addr:["住所","所在地","住所1","住所_全文","address"],
+    url:["URL","url","リンク","公式","公式サイト","サイトURL"],
+    atmos:["Dolby Atmos","Atmos","ドルビーアトモス","アトモス"],
+    ch71:["7.1ch","7.1 ch","7.1CH","7_1ch","7-1ch"],
+    k4:["4K","4ｋ","４Ｋ","4k"],
+    other:["other","備考","メモ","注記"],
+    seats:["座席数","席数","シート数","キャパ","収容人数"]
+  };
+  function buildDataFromRows(header, rows){
+    var iPref=findIdx(header,ALIAS.pref), iName=findIdx(header,ALIAS.name), iAddr=findIdx(header,ALIAS.addr),
+        iURL=findIdx(header,ALIAS.url), iAt=findIdx(header,ALIAS.atmos), i71=findIdx(header,ALIAS.ch71),
+        i4K=findIdx(header,ALIAS.k4), iOther=findIdx(header,ALIAS.other), iSeats=findIdx(header,ALIAS.seats);
 
     var data=[];
     for(var r=0;r<rows.length;r++){
-      var row=rows[r], prefN=normalizePref(ip>-1?row[ip]:"");
+      var row=rows[r]||[];
+      var prefNorm=normalizePref(iPref>-1? row[iPref] : "");
       data.push({
-        prefNorm: prefN, prefDisp: displayPref(prefN),
-        theater:  iname>-1? String(row[iname]||"").trim():"",
-        address:  iaddr>-1? String(row[iaddr]||"").trim():"",
-        url:      iurl>-1?  String(row[iurl]||"").trim():"",
-        atmos:    iat>-1?   String(row[iat]||"").trim():"",
-        ch71:     i71>-1?   String(row[i71]||"").trim():"",
-        k4:       i4k>-1?   String(row[i4k]||"").trim():"",
-        other:    ioth>-1?  String(row[ioth]||"").trim():"",
-        seats:    iseat>-1? String(row[iseat]||"").trim():""
+        prefNorm:prefNorm, prefDisp:displayPref(prefNorm),
+        theater: iName>-1? String(row[iName]||"").trim():"",
+        address: iAddr>-1? String(row[iAddr]||"").trim():"",
+        url:     iURL>-1?  String(row[iURL]||"").trim():"",
+        atmos:   iAt>-1?   String(row[iAt]||"").trim():"",
+        ch71:    i71>-1?   String(row[i71]||"").trim():"",
+        k4:      i4K>-1?   String(row[i4K]||"").trim():"",
+        other:   iOther>-1?String(row[iOther]||"").trim():"",
+        seats:   iSeats>-1?String(row[iSeats]||"").trim():""
       });
     }
-
     var order=["北海道","青森県","岩手県","宮城県","秋田県","山形県","福島県","茨城県","栃木県","群馬県","埼玉県","千葉県","東京都","神奈川県","新潟県","山梨県","長野県","富山県","石川県","福井県","岐阜県","静岡県","愛知県","三重県","滋賀県","京都府","大阪府","兵庫県","奈良県","和歌山県","鳥取県","島根県","岡山県","広島県","山口県","徳島県","香川県","愛媛県","高知県","福岡県","佐賀県","長崎県","熊本県","大分県","宮崎県","鹿児島県","沖縄県"];
-    var present={}; for(var i=0;i<data.length;i++){ if(data[i].prefNorm) present[data[i].prefNorm]=true; }
-    var prefs=[]; for(var j=0;j<order.length;j++){ var p=order[j]; if(present[p]) prefs.push({norm:p,disp:displayPref(p)}); }
-    var extra={}; for(var k=0;k<data.length;k++){ var pn=data[k].prefNorm; if(pn && !present["#"+pn] && order.indexOf(pn)===-1){ prefs.push({norm:pn,disp:displayPref(pn)}); present["#"+pn]=true; } }
-    return {data:data, prefects:prefs};
+    var present={}, prefects=[];
+    for(var i=0;i<data.length;i++){ if(data[i].prefNorm) present[data[i].prefNorm]=true; }
+    for(var j=0;j<order.length;j++){ var p=order[j]; if(present[p]) prefects.push({norm:p,disp:displayPref(p)}); }
+    return {data:data, prefects:prefects};
   }
 
-  (function run(){
-    Papa.parse(SHEET_CSV_URL, {
+  // 読み込み実行
+  (function(){
+    Papa.parse(SHEET_CSV_URL,{
       download:true, header:false, skipEmptyLines:true,
       complete:function(res){
-        var rows=res.data||[]; if(!rows.length){ dbg("CSVが空です"); return; }
-        var header=rows[0], body=rows.slice(1);
-        var built=buildData(header, body);
+        var rows=res.data||[]; if(!rows.length){dbg("CSVが空です"); return;}
+        var header=rows[0]; var body=rows.slice(1);
+        var built=buildDataFromRows(header,body);
         window.data=built.data; window.prefects=built.prefects;
         dbg("読み込み成功: "+built.data.length+"件 / 都道府県 "+built.prefects.length);
-        // 既存の render() を呼ぶ（描画ロジックを残していれば存在します）
-        if (typeof window.render==="function") window.render();
+        if(typeof initUI==="function"){ initUI(); render(); }
       },
-      error:function(err){ console.error(err); dbg("CSV読込エラー。URLと公開設定を確認"); }
+      error:function(err){ console.error(err); dbg("CSV読込エラー：URL/公開設定を確認"); }
     });
   })();
 </script>
+
+<!-- ===== 表示ロジック（UI） ===== -->
+<script>
+  // 古い環境でも動くES5書き方
+  var STATE = { tab:"all", pref:"", q:"" };
+
+  function initUI(){
+    // タブ
+    var tabs=document.getElementById("tabs");
+    tabs.onclick=function(e){
+      var t=e.target; if(!t || t.className.indexOf("tab")===-1) return;
+      var all=tabs.getElementsByClassName("tab");
+      for(var i=0;i<all.length;i++){ all[i].className=all[i].className.replace(" active",""); }
+      if(t.className.indexOf("active")===-1) t.className+=" active";
+      STATE.tab=t.getAttribute("data-tab");
+      render();
+    };
+
+    // 都道府県セレクト
+    var sel=document.getElementById("prefSelect");
+    for(var i=0;i<window.prefects.length;i++){
+      var o=document.createElement("option");
+      o.value=window.prefects[i].norm; o.textContent=window.prefects[i].disp; sel.appendChild(o);
+    }
+    sel.onchange=function(){ STATE.pref=this.value; render(); };
+
+    // 検索
+    var q=document.getElementById("q");
+    q.oninput=function(){ STATE.q=this.value.replace(/^\s+|\s+$/g,""); render(); };
+  }
+
+  function matchTab(rec){
+    function nz(v){ return v && String(v).replace(/\s+/g,"")!==""; }
+    if(STATE.tab==="all") return true;
+    if(STATE.tab==="cinema") return rec.other && rec.other.indexOf("Dolby Cinema")!==-1;
+    if(STATE.tab==="atmos") return nz(rec.atmos);
+    if(STATE.tab==="axk") return nz(rec.atmos) && nz(rec.k4);
+    if(STATE.tab==="ch71") return nz(rec.ch71);
+    if(STATE.tab==="k4") return nz(rec.k4);
+    return true;
+  }
+  function matchFilters(rec){
+    if(STATE.pref && rec.prefNorm!==STATE.pref) return false;
+    if(STATE.q){
+      var hay=(rec.theater+" "+rec.address+" "+(rec.prefDisp||"")).toLowerCase();
+      if(hay.indexOf(STATE.q.toLowerCase())===-1) return false;
+    }
+    return true;
+  }
+  function badgeRow(rec){
+    var b=[]; function nz(s){return s && String(s).trim()!=="";}
+    if(nz(rec.atmos)) b.push("🎬 Dolby Atmos："+rec.atmos);
+    if(nz(rec.k4))    b.push("✨ 4K");
+    if(nz(rec.ch71))  b.push("🔊 7.1ch");
+    if(rec.other && rec.other.indexOf("Dolby Cinema")!==-1) b.push("🎥 Dolby Cinema");
+    if(!b.length) return "";
+    var h='<div class="badges">'; for(var i=0;i<b.length;i++){ h+='<span class="badge">'+b[i]+'</span>'; } h+='</div>'; return h;
+  }
+  function seatsLine(rec){
+    var s=(rec.seats && String(rec.seats).trim()!=="")? rec.seats : "—";
+    if(rec.atmos && String(rec.atmos).trim()!=="" && s!=="—"){ return '🎬 Dolby Atmos：'+rec.atmos+'（💺 座席数：'+s+'）'; }
+    return '💺 座席数：'+s;
+  }
+  function card(rec){
+    var link=rec.url? '<a class="btn" href="'+rec.url+'" target="_blank" rel="noopener">公式サイト</a>' : '';
+    return '<div class="card">'
+         +   '<div class="title">'+rec.theater+'</div>'
+         +   '<div class="meta">📍 '+rec.address+'</div>'
+         +   '<div class="meta">'+seatsLine(rec)+'</div>'
+         +   badgeRow(rec)
+         +   link
+         + '</div>';
+  }
+
+  function render(){
+    if(!window.data){ return; }
+    var recs=[]; for(var i=0;i<window.data.length;i++){ var r=window.data[i]; if(matchTab(r)&&matchFilters(r)) recs.push(r); }
+    // 都道府県ごと
+    var groups={}; for(var j=0;j<recs.length;j++){ var k=recs[j].prefNorm||"（都道府県不明）"; if(!groups[k]) groups[k]=[]; groups[k].push(recs[j]); }
+    var content=document.getElementById("content"); var html="";
+    for(var p=0;p<window.prefects.length;p++){
+      var key=window.prefects[p].norm; var arr=groups[key]; if(!arr||!arr.length) continue;
+      html+='<section class="group"><h2>'+window.prefects[p].disp+'</h2><div class="grid">';
+      for(var m=0;m<arr.length;m++){ html+=card(arr[m]); }
+      html+='</div></section>';
+    }
+    if(!html){ html='<div class="group"><h2>該当なし</h2><div class="meta">フィルタを変更してください。</div></div>'; }
+    content.innerHTML=html;
+  }
+</script>
+
+</body>
+</html>
