@@ -29,7 +29,10 @@
   .badge{font-size:12px;padding:2px 8px;background:#1a2233;border:1px solid #22304b;border-radius:999px;white-space:nowrap}
   a.btn{display:inline-block;text-decoration:none;color:#fff;background:var(--accent);padding:7px 10px;border-radius:10px;font-size:13px}
   footer{padding:14px;color:var(--muted);font-size:12px;border-top:1px solid var(--border)}
-  #csv-debug{position:fixed;left:8px;bottom:8px;max-width:92vw;background:#1f2937;color:#fff;padding:8px 10px;border-radius:8px;font:12px/1.4 system-ui,-apple-system;z-index:9999;opacity:.95;white-space:pre-wrap}
+  /* デバッグは必要時のみ style を当てる。通常は非表示 */
+  #csv-debug{display:none;position:fixed;left:8px;bottom:8px;max-width:92vw;background:#1f2937;color:#fff;padding:8px 10px;border-radius:8px;font:12px/1.4 system-ui,-apple-system;z-index:9999;opacity:.95;white-space:pre-wrap}
+  .skeleton{height:96px;background:linear-gradient(90deg,#151a22,#1a2030,#151a22);background-size:200% 100%;animation:sk 1.2s infinite}
+  @keyframes sk{0%{background-position:0 0}100%{background-position:200% 0}}
 </style>
 </head>
 <body>
@@ -42,7 +45,7 @@
     <button type="button" class="tab" data-tab="atmos">Dolby Atmos</button>
     <button type="button" class="tab" data-tab="axk">Dolby Atmos×4K</button>
     <button type="button" class="tab" data-tab="ch71">7.1ch</button>
-    <!-- 4K 単独タブは表示しない -->
+    <!-- 4K 単独タブは非表示 -->
   </div>
 </header>
 
@@ -54,12 +57,15 @@
 </div>
 
 <main id="content">
-  <div class="group"><h2>読み込み中…</h2></div>
+  <div class="group"><h2>読み込み中…</h2><div class="grid"><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></div></div>
 </main>
 
 <footer>
   ※ タブ（ALL / Dolby Cinema / Dolby Atmos / Dolby Atmos×4K / 7.1ch）と、エリア・検索で絞り込みできます。
 </footer>
+
+<!-- 任意：必要時だけ下の display を block にして確認 -->
+<div id="csv-debug"></div>
 
 <!-- Papa Parse -->
 <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js" crossorigin="anonymous"></script>
@@ -69,26 +75,22 @@
 var SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vShtDnZUCsyJKxq1mUB8Hgid98ngAWYAcgEwhCg2MaV3cqbmyRsEsbr2eyZ8XFdyW00ZdsB2BkJhVuC/pub?gid=1453087675&single=true&output=csv";
 var OVERRIDE_HEADER = { pref:"エリア", cinema:"Dolby Cinema" };
 
-/* ====== ユーティリティ ====== */
-function dbg(msg){
-  var el=document.getElementById('csv-debug');
-  if(!el){ el=document.createElement('div'); el.id='csv-debug'; document.body.appendChild(el); }
-  el.textContent = (typeof msg==='string')? msg : JSON.stringify(msg,null,2);
-}
+/* ====== 軽量化のためのユーティリティ ====== */
+function dbg(msg){ /* 必要なときだけ下の1行のコメントを外す
+  var el=document.getElementById('csv-debug'); el.style.display='block';
+  el.textContent = (typeof msg==='string')? msg : JSON.stringify(msg,null,2); */ }
 function clean(v){
   return String(v||"")
     .replace(/contentReference\[oaicite:\d+\]\{index=\d+\}/gi, '')
     .replace(/[\u200B-\u200D\uFEFF]/g, '')
     .trim();
 }
-function toHalfWidthDigits(s){
-  return String(s||"").replace(/[０-９]/g, ch => String.fromCharCode(ch.charCodeAt(0)-0xFEE0));
-}
+function toHalfWidthDigits(s){ return String(s||"").replace(/[０-９]/g, ch => String.fromCharCode(ch.charCodeAt(0)-0xFEE0)); }
+function debounce(fn,ms){ let t; return function(){ clearTimeout(t); const a=arguments; t=setTimeout(()=>fn.apply(this,a),ms); }; }
 
 /* ====== 都道府県処理 ====== */
 var PREFS = ["北海道","青森県","岩手県","宮城県","秋田県","山形県","福島県","茨城県","栃木県","群馬県","埼玉県","千葉県","東京都","神奈川県","新潟県","山梨県","長野県","富山県","石川県","福井県","岐阜県","静岡県","愛知県","三重県","滋賀県","京都府","大阪府","兵庫県","奈良県","和歌山県","鳥取県","島根県","岡山県","広島県","山口県","徳島県","香川県","愛媛県","高知県","福岡県","佐賀県","長崎県","熊本県","大分県","宮崎県","鹿児島県","沖縄県"];
 var REGIONS = ["北海道","東北","関東","北陸","甲信越","東海","中部","近畿","関西","中国","四国","九州","沖縄"];
-
 function prefectureFromAddress(addr){
   var s=clean(addr).replace(/\s|\u3000/g,"");
   if(!s) return "";
@@ -112,7 +114,7 @@ function displayPref(pref){
   if(pref==="東京都") return "東京";
   if(pref==="大阪府") return "大阪";
   if(pref==="京都府") return "京都";
-  var last=pref.charAt(p.length-1);
+  var last=pref.charAt(pref.length-1);
   if(["都","道","府","県"].indexOf(last)!==-1) return pref.slice(0,-1);
   return pref;
 }
@@ -146,7 +148,6 @@ function idxSmart(header,key){
 }
 
 /* ====== Dolby系の値パース ====== */
-// Dolby Cinema：有無＋スクリーン番号（E列）
 function parseDolbyCinema(v){
   let s = toHalfWidthDigits(String(v||"").trim());
   if (!s) return { flag:false, screen:null };
@@ -158,7 +159,6 @@ function parseDolbyCinema(v){
   if (/dolby\s*cinema/i.test(t) || /ドルビーシネマ/.test(s)) return { flag:true, screen:null };
   return { flag:false, screen:null };
 }
-// Dolby Atmos：最初の数字をスクリーン番号として表示（なければ値をそのまま）
 function parseAtmosScreen(v){
   let s = toHalfWidthDigits(String(v||"").trim());
   if (!s) return { has:false, screen:null, raw:"" };
@@ -168,7 +168,8 @@ function parseAtmosScreen(v){
   return { has:true, screen:null, raw:s };
 }
 
-/* ====== CSV → データ構築 ====== */
+/* ====== CSV → データ構築（事前計算で軽量化） ====== */
+var DATA=[], PREFECTS=[];
 function buildDataFromRows(header, rows){
   var iPref  = idxSmart(header,"pref");
   var iName  = idxSmart(header,"name");
@@ -181,7 +182,8 @@ function buildDataFromRows(header, rows){
   var iSeats = idxSmart(header,"seats");
   var iCinema= idxSmart(header,"cinema");
 
-  var data=[], present={};
+  var present={};
+  DATA = [];
 
   for(var r=0;r<rows.length;r++){
     var row=rows[r]||[];
@@ -203,13 +205,13 @@ function buildDataFromRows(header, rows){
     var atmosInfo = parseAtmosScreen(atmosRaw);
 
     var rec = {
-      prefNorm: prefNorm,
+      prefNorm,
       prefDisp: displayPref(prefNorm),
       theater : iName>-1?  clean(row[iName])  : "",
       address : iAddr>-1?  clean(row[iAddr])  : "",
       url     : iURL>-1?   clean(row[iURL])   : "",
-      atmos   : atmosRaw,                 // 生値（フィルタ用に保持）
-      atmosScreen: atmosInfo.screen,      // スクリーン番号
+      atmos   : atmosRaw,
+      atmosScreen: atmosInfo.screen,
       ch71    : i71>-1?    clean(row[i71])    : "",
       k4      : i4K>-1?    clean(row[i4K])    : "",
       other   : iOther>-1? clean(row[iOther]) : "",
@@ -217,57 +219,65 @@ function buildDataFromRows(header, rows){
       cinema  : cinemaInfo.flag,
       cinemaScreen: cinemaInfo.screen
     };
-    data.push(rec);
+    // 検索用文字列を前計算
+    rec.searchHay = (rec.theater+" "+rec.address+" "+(rec.prefDisp||"")).toLowerCase();
+
+    DATA.push(rec);
     if(rec.prefNorm) present[rec.prefNorm]=true;
   }
 
-  var prefects=[];
-  for(var i=0;i<PREFS.length;i++){ if(present[PREFS[i]]) prefects.push({norm:PREFS[i], disp:displayPref(PREFS[i])}); }
-  if(data.some(function(d){return !d.prefNorm;})) prefects.push({norm:"", disp:"（エリア不明）"});
+  PREFECTS=[];
+  for(var i=0;i<PREFS.length;i++){ if(present[PREFS[i]]) PREFECTS.push({norm:PREFS[i], disp:displayPref(PREFS[i])}); }
+  if(DATA.some(function(d){return !d.prefNorm;})) PREFECTS.push({norm:"", disp:"（エリア不明）"});
 
-  dbg("ヘッダー検出:\n  エリア: "+(iPref>-1? header[iPref]:"(未検出)")+"\n  Dolby Cinema: "+(iCinema>-1? header[iCinema]:"(未検出)")+"\n  Dolby Atmos: "+(iAt>-1? header[iAt]:"(未検出)")+"\n  住所: "+(iAddr>-1? header[iAddr]:"(未検出)")+"\n  劇場名: "+(iName>-1? header[iName]:"(未検出)"));
-  return {data:data, prefects:prefects};
+  dbg("ヘッダー検出:\n  エリア: "+(iPref>-1? header[iPref]:"(未検出)")+"\n  Dolby Cinema: "+(iCinema>-1? header[iCinema]:"(未検出)")+"\n  Dolby Atmos: "+(iAt>-1? header[iAt]:"(未検出)"));
 }
 
-/* ====== CSV 読み込み（キャッシュ回避） ====== */
+/* ====== CSV 読み込み（タイムアウト/キャッシュ回避） ====== */
 function csvUrlNoCache(){ return SHEET_CSV_URL + '&_t=' + Date.now(); }
 (function(){
+  let timedOut=false;
+  const to=setTimeout(()=>{timedOut=true; dbg("CSV接続が遅延しています…");},8000);
+
   Papa.parse(csvUrlNoCache(),{
     download:true, header:false, skipEmptyLines:true,
     complete:function(res){
-      var rows=res.data||[]; if(!rows.length){ dbg("CSVが空です"); return; }
-      var header=rows[0], body=rows.slice(1);
-      var built=buildDataFromRows(header, body);
-      window.data=built.data; window.prefects=built.prefects;
-      if(typeof initUI==="function"){ initUI(); render(); }
+      clearTimeout(to);
+      if(timedOut){ /* 何もしないが完了 */ }
+      const rows=res.data||[];
+      if(!rows.length){ renderError("CSVが空です"); return; }
+      const header=rows[0], body=rows.slice(1);
+      buildDataFromRows(header, body);
+      initUI();
+      render();
     },
-    error:function(err){ console.error(err); dbg("CSV読込エラー。URL/公開設定をご確認ください。"); }
+    error:function(err){ console.error(err); renderError("CSV読込エラー。URL/公開設定をご確認ください。"); }
   });
 })();
 
-/* ====== UI ====== */
+/* ====== UI & レンダリング（分割描画） ====== */
 var STATE = { tab:"all", pref:"", q:"" };
-
 function initUI(){
-  var tabs=document.getElementById("tabs");
+  const tabs=document.getElementById("tabs");
   tabs.onclick=function(e){
-    var t=e.target; if(!t || t.className.indexOf("tab")===-1) return;
-    var all=tabs.getElementsByClassName("tab");
-    for(var i=0;i<all.length;i++){ all[i].classList.remove("active"); }
+    const t=e.target; if(!t || t.className.indexOf("tab")===-1) return;
+    const all=tabs.getElementsByClassName("tab");
+    for(let i=0;i<all.length;i++) all[i].classList.remove("active");
     t.classList.add("active");
     STATE.tab=t.getAttribute("data-tab");
     render();
   };
 
-  var sel=document.getElementById("prefSelect");
-  for(var i=0;i<window.prefects.length;i++){
-    var o=document.createElement("option");
-    o.value=window.prefects[i].norm; o.textContent=window.prefects[i].disp; sel.appendChild(o);
+  const sel=document.getElementById("prefSelect");
+  sel.innerHTML='<option value="">エリア（すべて）</option>';
+  for(let i=0;i<PREFECTS.length;i++){
+    const o=document.createElement("option");
+    o.value=PREFECTS[i].norm; o.textContent=PREFECTS[i].disp; sel.appendChild(o);
   }
   sel.onchange=function(){ STATE.pref=this.value; render(); };
 
-  var q=document.getElementById("q");
-  q.oninput=function(){ STATE.q=this.value.replace(/^\s+|\s+$/g,""); render(); };
+  const q=document.getElementById("q");
+  q.oninput=debounce(function(){ STATE.q=this.value.trim(); render(); }, 200);
 }
 
 function nz(v){ return v && String(v).replace(/\s+/g,"")!==""; }
@@ -275,77 +285,92 @@ function matchTab(rec){
   if(STATE.tab==="all")   return true;
   if(STATE.tab==="cinema")return !!rec.cinema;
   if(STATE.tab==="atmos") return nz(rec.atmos);
-  if(STATE.tab==="axk")   return nz(rec.atmos) && nz(rec.k4); // Atmos×4K は残す
+  if(STATE.tab==="axk")   return nz(rec.atmos) && nz(rec.k4);
   if(STATE.tab==="ch71")  return nz(rec.ch71);
-  // 「4K単独」タブは無し
   return true;
 }
 function matchFilters(rec){
   if(STATE.pref!=="" && rec.prefNorm!==STATE.pref) return false;
   if(STATE.q){
-    var hay=(rec.theater+" "+rec.address+" "+(rec.prefDisp||"")).toLowerCase();
-    if(hay.indexOf(STATE.q.toLowerCase())===-1) return false;
+    if(rec.searchHay.indexOf(STATE.q.toLowerCase())===-1) return false;
   }
   return true;
 }
 
-/* ====== 表示 ====== */
 function badgeRow(rec){
-  var b=[];
-  // Dolby Cinema（スクリーン番号があれば表示）
+  const b=[];
   if(rec.cinema){
-    var labelC = rec.cinemaScreen ? `🎥 Dolby Cinema（スクリーン${rec.cinemaScreen}）` : "🎥 Dolby Cinema";
-    b.push(labelC);
+    b.push(rec.cinemaScreen ? `🎥 Dolby Cinema（スクリーン${rec.cinemaScreen}）` : "🎥 Dolby Cinema");
   }
-  // Atmos × 4K のみ 4Kバッジを含む表現に統一
   if(nz(rec.atmos) && nz(rec.k4)){
-    var labelAXK = rec.atmosScreen ? `🎬 Dolby Atmos×4K（スクリーン${rec.atmosScreen}）` : `🎬 Dolby Atmos×4K`;
-    b.push(labelAXK);
+    b.push(rec.atmosScreen ? `🎬 Dolby Atmos×4K（スクリーン${rec.atmosScreen}）` : `🎬 Dolby Atmos×4K`);
   } else if(nz(rec.atmos)){
-    var labelA = rec.atmosScreen ? `🎬 Dolby Atmos（スクリーン${rec.atmosScreen}）` : `🎬 Dolby Atmos`;
-    b.push(labelA);
+    b.push(rec.atmosScreen ? `🎬 Dolby Atmos（スクリーン${rec.atmosScreen}）` : `🎬 Dolby Atmos`);
   }
-  // 4K単独はバッジに出さない
-  if(nz(rec.ch71))  b.push("🔊 7.1ch");
-
+  if(nz(rec.ch71)) b.push("🔊 7.1ch");
   if(!b.length) return "";
-  var h='<div class="badges">'; for(var i=0;i<b.length;i++){ h+='<span class="badge">'+b[i]+'</span>'; } h+='</div>';
+  let h='<div class="badges">'; for(let i=0;i<b.length;i++) h+=`<span class="badge">${b[i]}</span>`; h+='</div>';
   return h;
 }
 function seatsLine(rec){
-  var s=(rec.seats && String(rec.seats).trim()!=="")? rec.seats : "—";
+  const s=(rec.seats && String(rec.seats).trim()!=="")? rec.seats : "—";
   return '💺 座席数：'+s;
 }
-function card(rec){
-  var link=rec.url? '<a class="btn" href="'+rec.url+'" target="_blank" rel="noopener">公式サイト</a>' : '';
-  return '<div class="card">'
-       +   '<div class="title">'+(rec.theater||"(劇場名不明)")+'</div>'
-       +   '<div class="meta">📍 '+(rec.address||"")+'</div>'
-       +   '<div class="meta">'+seatsLine(rec)+'</div>'
-       +   badgeRow(rec)
-       +   link
-       + '</div>';
+function cardHTML(rec){
+  const link=rec.url? `<a class="btn" href="${rec.url}" target="_blank" rel="noopener">公式サイト</a>` : '';
+  return `<div class="card">
+    <div class="title">${rec.theater||"(劇場名不明)"}</div>
+    <div class="meta">📍 ${rec.address||""}</div>
+    <div class="meta">${seatsLine(rec)}</div>
+    ${badgeRow(rec)}
+    ${link}
+  </div>`;
 }
-function render(){
-  if(!window.data){ return; }
-  var recs=[]; for(var i=0;i<window.data.length;i++){ var r=window.data[i]; if(matchTab(r)&&matchFilters(r)) recs.push(r); }
-  var groups={}; for(var j=0;j<recs.length;j++){ var k=recs[j].prefNorm||""; if(!groups[k]) groups[k]=[]; groups[k].push(recs[j]); }
 
-  var content=document.getElementById("content"), html="";
-  for(var p=0;p<window.prefects.length;p++){
-    var key=window.prefects[p].norm, arr=groups[key];
-    if(!arr||!arr.length) continue;
-    html+='<section class="group"><h2>'+window.prefects[p].disp+'</h2><div class="grid">';
-    for(var m=0;m<arr.length;m++){ html+=card(arr[m]); }
-    html+='</div></section>';
+function renderError(msg){
+  const content=document.getElementById("content");
+  content.innerHTML=`<div class="group"><h2>読み込みエラー</h2><div class="meta">${msg}</div></div>`;
+}
+
+/* 段階的に描画：都道府県ごとに1フレームずつ追加 */
+function render(){
+  if(!DATA || !DATA.length){ return; }
+  const recs=[];
+  for(let i=0;i<DATA.length;i++){
+    const r=DATA[i];
+    if(matchTab(r)&&matchFilters(r)) recs.push(r);
   }
-  if(groups[""] && groups[""].length){
-    html+='<section class="group"><h2>（エリア不明）</h2><div class="grid">';
-    var arrU=groups[""]; for(var u=0;u<arrU.length;u++){ html+=card(arrU[u]); }
-    html+='</div></section>';
+  const groups={};
+  for(let i=0;i<recs.length;i++){
+    const k=recs[i].prefNorm||"";
+    (groups[k]||(groups[k]=[])).push(recs[i]);
   }
-  if(!html){ html='<div class="group"><h2>該当なし</h2><div class="meta">タブ・エリア・検索を調整してください。</div></div>'; }
-  content.innerHTML=html;
+
+  const content=document.getElementById("content");
+  content.innerHTML=""; // いったん空に
+  const order = PREFECTS.map(p=>p.norm);
+  if(groups[""] && groups[""].length) order.push(""); // エリア不明を最後に
+
+  let idx=0;
+  function step(){
+    if(idx>=order.length){
+      if(!content.innerHTML) content.innerHTML='<div class="group"><h2>該当なし</h2><div class="meta">タブ・エリア・検索を調整してください。</div></div>';
+      return;
+    }
+    const key=order[idx++], arr=groups[key];
+    if(arr && arr.length){
+      const sec=document.createElement("section");
+      sec.className="group";
+      const disp = key ? displayPref(key) : "（エリア不明）";
+      let html=`<h2>${disp}</h2><div class="grid">`;
+      for(let j=0;j<arr.length;j++) html+=cardHTML(arr[j]);
+      html+='</div>';
+      sec.innerHTML=html;
+      content.appendChild(sec);
+    }
+    requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
 }
 </script>
 
