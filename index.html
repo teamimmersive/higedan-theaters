@@ -1,408 +1,93 @@
-<!doctype html>
-<!-- v2 -->
-<html lang="ja">
-<head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
-<title>劇場リスト（タブ式・スマホ最適）</title>
-<style>
-  :root {
-    --bg: #0c0f14;
-    --card: #12161d;
-    --muted: #8a93a6;
-    --text: #e7ebf3;
-    --accent: #4f8cff;
-    --chip: #1a1f2b;
-    --border: #222838;
-  }
-  * { box-sizing: border-box; }
-  html, body { height: 100%; }
-  body { margin: 0; padding: 16px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans JP", "Hiragino Kaku Gothic ProN", "游ゴシック体", "Yu Gothic", "Meiryo", sans-serif; background: var(--bg); color: var(--text); }
-  header { display: grid; gap: 10px; margin-bottom: 12px; position: sticky; top: 0; background: rgba(12,15,20,.96); backdrop-filter: blur(6px); z-index: 10; padding-bottom: 8px; }
-  h1 { font-size: 20px; margin: 0 0 2px; }
-  .tabs { display: flex; gap: 8px; flex-wrap: wrap; }
-  .tab { padding: 8px 12px; border-radius: 999px; background: var(--chip); color: var(--text); border: 1px solid var(--border); cursor: pointer; font-size: 14px; }
-  .tab .count { opacity: .8; font-size: 12px; margin-left: 6px; }
-  .tab.active { background: var(--accent); border-color: var(--accent); color: #fff; }
-  .filters { display: grid; grid-template-columns: 1fr; gap: 8px; margin-top: 6px; }
-  .filter-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-  @media (min-width: 720px) { .filters { grid-template-columns: 1fr 2fr; align-items: center; } }
-  select, input[type="search"] { width: 100%; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--border); background: #0f141d; color: var(--text); }
-  .chips { display: flex; gap: 8px; flex-wrap: wrap; }
-  .chip { border: 1px solid var(--border); background: var(--chip); border-radius: 999px; padding: 6px 10px; cursor: pointer; font-size: 13px; }
-  .chip.active { background: #2a3550; border-color: #2a3550; }
-  .group { margin-top: 16px; }
-  .group h2 { font-size: 16px; color: var(--muted); font-weight: 600; letter-spacing: .02em; margin: 16px 4px 8px; }
-  .grid { display: grid; grid-template-columns: 1fr; gap: 10px; }
-  @media (min-width: 540px) { .grid { grid-template-columns: 1fr 1fr; } }
-  @media (min-width: 900px) { .grid { grid-template-columns: 1fr 1fr 1fr; } }
-  .card { border: 1px solid var(--border); background: var(--card); border-radius: 14px; padding: 12px; display: grid; gap: 8px; }
-  .title-row { display: flex; gap: 8px; align-items: center; justify-content: space-between; }
-  .title { font-size: 15px; font-weight: 600; line-height: 1.3; }
-  .badges { display: flex; gap: 6px; flex-wrap: wrap; }
-  .badge { font-size: 12px; padding: 2px 8px; background: #1a2233; border: 1px solid #22304b; border-radius: 999px; }
-  .meta { font-size: 13px; color: var(--muted); }
-  a.btn { display: inline-block; text-decoration: none; color: #fff; background: var(--accent); padding: 8px 10px; border-radius: 10px; font-size: 13px; text-align: center; }
-  .empty { color: var(--muted); font-size: 14px; padding: 16px 4px; }
-  footer { margin-top: 18px; color: var(--muted); font-size: 12px; }
-  a, button { -webkit-tap-highlight-color: rgba(0,0,0,0); }
-</style>
-</head>
-<body>
-<header>
-  <h1>劇場リスト（タブ切替・スマホ最適）</h1>
-  <div class="tabs" id="tabs">
-    <button class="tab active" data-tab="all" type="button">ALL <span class="count" id="count-all"></span></button>
-    <button class="tab" data-tab="cinema" type="button">Dolby Cinema 🎥 <span class="count" id="count-cinema"></span></button>
-    <button class="tab" data-tab="atmos" type="button">Dolby Atmos 🎬 <span class="count" id="count-atmos"></span></button>
-    <button class="tab" data-tab="axk" type="button">Dolby Atmos × 4K 🎬✨ <span class="count" id="count-axk"></span></button>
-    <button class="tab" data-tab="ch71" type="button">7.1ch 🔊 <span class="count" id="count-ch71"></span></button>
-    <button class="tab" data-tab="k4" type="button">4K ✨ <span class="count" id="count-k4"></span></button>
-  </div>
-  <div class="filters">
-    <div class="filter-row">
-      <select id="pref">
-        <option value="">都道府県（すべて）</option>
-      </select>
-      <input id="q" type="search" placeholder="劇場名・住所で検索…" />
-    </div>
-    <div class="chips">
-      <button class="chip" data-chip="hasSeats" type="button">座席数あり</button>
-      <button class="chip" data-chip="over200" type="button">座席数200以上</button>
-    </div>
-  </div>
-</header>
-
-<main id="content"></main>
-
-<footer>
-  ※ タブ（ALL / Dolby Cinema / Dolby Atmos / Dolby Atmos×4K / 7.1ch / 4K）切替＋都道府県・検索・チップで絞り込みできます。
-</footer>
-<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
-<script>
-<!-- Papa Parse（CSVを安全にパース） -->
+<!-- CSVローダー：最後に置く（renderなど既存JSの後） -->
 <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"
         integrity="sha384-qk7n9x2x8qN0Tq6D7y7ZpC8xH0Qq5mJx0kqQZ7ZqK7v6sM1b8X8T3l8Y8qZq0p7L"
         crossorigin="anonymous"></script>
-
 <script>
-// ★あなたのCSV公開URL（このままでOK）
-var SHEET_CSV_URL =
-  "https://docs.google.com/spreadsheets/d/e/2PACX-1vShtDnZUCsyJKxq1mUB8Hgid98ngAWYAcgEwhCg2MaV3cqbmyRsEsbr2eyZ8XFdyW00ZdsB2BkJhVuC/pub?gid=1453087675&single=true&output=csv";
+  // ★そのままでOK：あなたのCSV公開URL
+  var SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vShtDnZUCsyJKxq1mUB8Hgid98ngAWYAcgEwhCg2MaV3cqbmyRsEsbr2eyZ8XFdyW00ZdsB2BkJhVuC/pub?gid=1453087675&single=true&output=csv";
 
-// ---- デバッグ用の小さな表示（失敗時に画面上へ出す） ----
-function showDebug(msg) {
-  var box = document.getElementById('csv-debug');
-  if (!box) {
-    box = document.createElement('div');
-    box.id = 'csv-debug';
-    box.style.cssText = 'position:fixed;left:8px;bottom:8px;max-width:92vw;background:#1f2937;color:#fff;padding:8px 10px;border-radius:8px;font:12px/1.4 system-ui, -apple-system;z-index:9999;opacity:.95';
-    document.body.appendChild(box);
-  }
-  box.textContent = '[CSV] ' + msg;
-}
-
-// ---- ヘッダーを頑丈にマッチ（全角/半角空白、大小、別名対応） ----
-function normalizeHeader(s){
-  return String(s||'').replace(/\u3000/g,' ').trim().toLowerCase();
-}
-function findIndexByAliases(header, aliases){
-  var h = header.map(normalizeHeader);
-  for (var i=0;i<aliases.length;i++){
-    var key = normalizeHeader(aliases[i]);
-    var idx = h.indexOf(key);
-    if (idx !== -1) return idx;
-  }
-  return -1;
-}
-
-// 別名テーブル（必要ならここに足せます）
-var ALIAS = {
-  pref:  ["都道府県","都道府県名","県名","道府県","都道府県 "],
-  name:  ["劇場名","映画館","映画館名","シアター","館名"],
-  addr:  ["住所","所在地","住所1","住所_全文","Address"],
-  url:   ["URL","url","リンク","公式","公式サイト","サイトURL"],
-  atmos: ["Dolby Atmos","Atmos","ドルビーアトモス","アトモス"],
-  ch71:  ["7.1ch","7.1 ch","7.1CH","7_1ch","7-1ch"],
-  k4:    ["4K","4Ｋ","４Ｋ","4k"],
-  other: ["other","備考","メモ","注記"],
-  seats: ["座席数","席数","シート数","キャパ","収容人数"]
-};
-
-// 表示/内部名
-function normalizePref(p) {
-  p = String(p||"").trim();
-  if (!p) return "";
-  var short = { "東京":"東京都", "大阪":"大阪府", "京都":"京都府", "沖縄":"沖縄県", "北海道":"北海道" };
-  if (short[p]) return short[p];
-  var last = p[p.length-1];
-  if (["都","道","府","県"].indexOf(last) === -1 && p !== "北海道") return p + "県";
-  return p;
-}
-function displayPref(prefNorm) {
-  if (!prefNorm) return "";
-  if (prefNorm === "北海道") return "北海道";
-  if (prefNorm === "東京都") return "東京";
-  if (prefNorm === "大阪府") return "大阪";
-  if (prefNorm === "京都府") return "京都";
-  var last = prefNorm[prefNorm.length-1];
-  if (["都","道","府","県"].indexOf(last) !== -1) return prefNorm.slice(0,-1);
-  return prefNorm;
-}
-
-// データ構築
-function buildDataFromRows(header, rows) {
-  var idxPref  = findIndexByAliases(header, ALIAS.pref);
-  var idxName  = findIndexByAliases(header, ALIAS.name);
-  var idxAddr  = findIndexByAliases(header, ALIAS.addr);
-  var idxURL   = findIndexByAliases(header, ALIAS.url);
-  var idxAtmos = findIndexByAliases(header, ALIAS.atmos);
-  var idx71    = findIndexByAliases(header, ALIAS.ch71);
-  var idx4K    = findIndexByAliases(header, ALIAS.k4);
-  var idxOther = findIndexByAliases(header, ALIAS.other);
-  var idxSeats = findIndexByAliases(header, ALIAS.seats);
-
-  if (idxPref === -1 || idxName === -1) {
-    showDebug("必須列が見つかりません（都道府県 or 劇場名）。先頭行の列名を確認してください。");
-  }
-
-  var data = [];
-  for (var i=0;i<rows.length;i++){
-    var r = rows[i];
-    var prefNorm = normalizePref(idxPref>-1? r[idxPref] : "");
-    data.push({
-      prefNorm: prefNorm,
-      prefDisp: displayPref(prefNorm),
-      theater:  idxName>-1?  String(r[idxName]||"").trim()  : "",
-      address:  idxAddr>-1?  String(r[idxAddr]||"").trim()  : "",
-      url:      idxURL>-1?   String(r[idxURL]||"").trim()   : "",
-      atmos:    idxAtmos>-1? String(r[idxAtmos]||"").trim() : "",
-      ch71:     idx71>-1?    String(r[idx71]||"").trim()    : "",
-      k4:       idx4K>-1?    String(r[idx4K]||"").trim()    : "",
-      other:    idxOther>-1? String(r[idxOther]||"").trim() : "",
-      seats:    idxSeats>-1? String(r[idxSeats]||"").trim() : ""
-    });
-  }
-
-  var prefOrder = ["北海道","青森県","岩手県","宮城県","秋田県","山形県","福島県",
-    "茨城県","栃木県","群馬県","埼玉県","千葉県","東京都","神奈川県",
-    "新潟県","山梨県","長野県",
-    "富山県","石川県","福井県",
-    "岐阜県","静岡県","愛知県","三重県",
-    "滋賀県","京都府","大阪府","兵庫県","奈良県","和歌山県",
-    "鳥取県","島根県","岡山県","広島県","山口県",
-    "徳島県","香川県","愛媛県","高知県",
-    "福岡県","佐賀県","長崎県","熊本県","大分県","宮崎県","鹿児島県","沖縄県"
-  ];
-  var present = {}; for (var j=0;j<data.length;j++) if (data[j].prefNorm) present[data[j].prefNorm]=true;
-  var prefects = [];
-  for (var k=0;k<prefOrder.length;k++){ var p=prefOrder[k]; if (present[p]) prefects.push({norm:p, disp:displayPref(p)}); }
-  // 順序にない表記があれば最後に追加
-  var extra = {};
-  for (var j2=0;j2<data.length;j2++){
-    var pn=data[j2].prefNorm;
-    if (pn && !extra[pn] && prefOrder.indexOf(pn)===-1){
-      prefects.push({norm:pn, disp:displayPref(pn)}); extra[pn]=true;
+  // ミニデバッグ（左下に状況表示）
+  function dbg(msg){
+    var el=document.getElementById('csv-debug');
+    if(!el){ el=document.createElement('div'); el.id='csv-debug';
+      el.style.cssText='position:fixed;left:8px;bottom:8px;max-width:92vw;background:#1f2937;color:#fff;padding:8px 10px;border-radius:8px;font:12px/1.4 system-ui,-apple-system;z-index:9999;opacity:.95';
+      document.body.appendChild(el);
     }
+    el.textContent='[CSV] '+msg;
   }
-  return {data:data, prefects:prefects};
-}
 
-// 読み込み実行
-(function(){
-  function run(){
+  // 列名ゆらぎ対応
+  function nHead(s){return String(s||'').replace(/\u3000/g,' ').trim().toLowerCase();}
+  function findIdx(h, aliases){var H=h.map(nHead);for(var i=0;i<aliases.length;i++){var k=nHead(aliases[i]);var j=H.indexOf(k);if(j!==-1)return j;}return-1;}
+  var ALIAS={
+    pref:["都道府県","都道府県名","県名","道府県","都道府県 "],
+    name:["劇場名","映画館","映画館名","シアター","館名"],
+    addr:["住所","所在地","住所1","住所_全文","address"],
+    url:["URL","url","リンク","公式","公式サイト","サイトURL"],
+    atmos:["Dolby Atmos","Atmos","ドルビーアトモス","アトモス"],
+    ch71:["7.1ch","7.1 ch","7.1CH","7_1ch","7-1ch"],
+    k4:["4K","4Ｋ","４Ｋ","4k"],
+    other:["other","備考","メモ","注記"],
+    seats:["座席数","席数","シート数","キャパ","収容人数"]
+  };
+
+  function normalizePref(p){
+    p=String(p||'').trim(); if(!p) return '';
+    var short={"東京":"東京都","大阪":"大阪府","京都":"京都府","沖縄":"沖縄県","北海道":"北海道"};
+    if(short[p]) return short[p];
+    var last=p[p.length-1]; if(["都","道","府","県"].indexOf(last)===-1 && p!=="北海道") return p+"県";
+    return p;
+  }
+  function displayPref(pref){
+    if(!pref) return ""; if(pref==="北海道") return "北海道";
+    if(pref==="東京都") return "東京"; if(pref==="大阪府") return "大阪"; if(pref==="京都府") return "京都";
+    var last=pref[pref.length-1]; if(["都","道","府","県"].indexOf(last)!==-1) return pref.slice(0,-1);
+    return pref;
+  }
+
+  function buildData(header, rows){
+    var ip=findIdx(header,ALIAS.pref), iname=findIdx(header,ALIAS.name), iaddr=findIdx(header,ALIAS.addr),
+        iurl=findIdx(header,ALIAS.url), iat=findIdx(header,ALIAS.atmos), i71=findIdx(header,ALIAS.ch71),
+        i4k=findIdx(header,ALIAS.k4), ioth=findIdx(header,ALIAS.other), iseat=findIdx(header,ALIAS.seats);
+
+    if(ip===-1||iname===-1){ dbg("必須列（都道府県/劇場名）が見つかりません"); }
+
+    var data=[];
+    for(var r=0;r<rows.length;r++){
+      var row=rows[r], prefN=normalizePref(ip>-1?row[ip]:"");
+      data.push({
+        prefNorm: prefN, prefDisp: displayPref(prefN),
+        theater:  iname>-1? String(row[iname]||"").trim():"",
+        address:  iaddr>-1? String(row[iaddr]||"").trim():"",
+        url:      iurl>-1?  String(row[iurl]||"").trim():"",
+        atmos:    iat>-1?   String(row[iat]||"").trim():"",
+        ch71:     i71>-1?   String(row[i71]||"").trim():"",
+        k4:       i4k>-1?   String(row[i4k]||"").trim():"",
+        other:    ioth>-1?  String(row[ioth]||"").trim():"",
+        seats:    iseat>-1? String(row[iseat]||"").trim():""
+      });
+    }
+
+    var order=["北海道","青森県","岩手県","宮城県","秋田県","山形県","福島県","茨城県","栃木県","群馬県","埼玉県","千葉県","東京都","神奈川県","新潟県","山梨県","長野県","富山県","石川県","福井県","岐阜県","静岡県","愛知県","三重県","滋賀県","京都府","大阪府","兵庫県","奈良県","和歌山県","鳥取県","島根県","岡山県","広島県","山口県","徳島県","香川県","愛媛県","高知県","福岡県","佐賀県","長崎県","熊本県","大分県","宮崎県","鹿児島県","沖縄県"];
+    var present={}; for(var i=0;i<data.length;i++){ if(data[i].prefNorm) present[data[i].prefNorm]=true; }
+    var prefs=[]; for(var j=0;j<order.length;j++){ var p=order[j]; if(present[p]) prefs.push({norm:p,disp:displayPref(p)}); }
+    var extra={}; for(var k=0;k<data.length;k++){ var pn=data[k].prefNorm; if(pn && !present["#"+pn] && order.indexOf(pn)===-1){ prefs.push({norm:pn,disp:displayPref(pn)}); present["#"+pn]=true; } }
+    return {data:data, prefects:prefs};
+  }
+
+  (function run(){
     Papa.parse(SHEET_CSV_URL, {
-      download: true,
-      header: false,         // ← 公開CSVの1行目が見出しなら header:false で自前処理
-      skipEmptyLines: true,
-      complete: function(res){
-        var rows = res.data || [];
-        if (!rows.length){ showDebug("CSVが空です"); return; }
-        var header = rows[0];              // 先頭行を見出しとして扱う
-        var body   = rows.slice(1);
-        var built  = buildDataFromRows(header, body);
-
-        window.data = built.data;
-        window.prefects = built.prefects;
-
-        showDebug("読み込み成功: " + built.data.length + "件（都道府県: " + built.prefects.length + "）");
-
-        // 既存 render() を呼ぶ（未定義なら少し待って再試行）
-        (function tryRender(n){
-          if (typeof window.render === "function") return window.render();
-          if ((n||0) < 15) setTimeout(function(){ tryRender((n||0)+1); }, 200);
-          else showDebug("render() が見つかりません");
-        })();
+      download:true, header:false, skipEmptyLines:true,
+      complete:function(res){
+        var rows=res.data||[]; if(!rows.length){ dbg("CSVが空です"); return; }
+        var header=rows[0], body=rows.slice(1);
+        var built=buildData(header, body);
+        window.data=built.data; window.prefects=built.prefects;
+        dbg("読み込み成功: "+built.data.length+"件 / 都道府県 "+built.prefects.length);
+        // 既存の render() を呼ぶ（描画ロジックを残していれば存在します）
+        if (typeof window.render==="function") window.render();
       },
-      error: function(err){
-        console.error("CSV読込エラー:", err);
-        showDebug("CSV読込エラー。URLや公開設定を確認してください。");
-      }
+      error:function(err){ console.error(err); dbg("CSV読込エラー。URLと公開設定を確認"); }
     });
-  }
-  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", run);
-  else run();
-})();
+  })();
 </script>
-  
-
-/* 以下：描画ロジック（省略なし） */
-document.addEventListener('DOMContentLoaded', function() {
-  var state = { tab: 'all', pref: '', q: '', chips: {} };
-  var elTabs = document.getElementById('tabs');
-  elTabs.addEventListener('click', function(e) {
-    var t = e.target;
-    while (t && t.className.indexOf('tab') === -1) { t = t.parentNode; }
-    if (!t) return;
-    var tabs = elTabs.getElementsByClassName('tab');
-    for (var i=0;i<tabs.length;i++) { tabs[i].className = tabs[i].className.replace(' active',''); }
-    if (t.className.indexOf('active') === -1) t.className += ' active';
-    state.tab = t.getAttribute('data-tab');
-    render();
-  }, false);
-
-  var elPref = document.getElementById('pref');
-  for (var i=0;i<prefects.length;i++) {
-    var opt = document.createElement('option');
-    opt.value = prefects[i].norm;
-    opt.textContent = prefects[i].disp;
-    elPref.appendChild(opt);
-  }
-  elPref.addEventListener('change', function(e) {
-    state.pref = e.target.value;
-    render();
-  }, false);
-
-  var q = document.getElementById('q');
-  q.addEventListener('input', function(e) {
-    state.q = e.target.value.replace(/^\s+|\s+$/g, '');
-    render();
-  }, false);
-
-  var chips = document.getElementsByClassName('chip');
-  for (var i=0;i<chips.length;i++) {
-    chips[i].addEventListener('click', function() {
-      var key = this.getAttribute('data-chip');
-      state.chips[key] = !state.chips[key];
-      if (state.chips[key]) this.className += ' active'; else this.className = this.className.replace(' active','');
-      render();
-    }, false);
-  }
-
-  function includes(hay, needle) { return hay.indexOf(needle) !== -1; }
-  function trim(s) { return String(s||'').replace(/^\s+|\s+$/g, ''); }
-
-  function matchesTab(rec) {
-    if (state.tab === 'all') return true;
-    if (state.tab === 'cinema') return rec.other && includes(rec.other, 'Dolby Cinema');
-    if (state.tab === 'atmos') return rec.atmos && trim(rec.atmos) !== '';
-    if (state.tab === 'axk') return rec.atmos && trim(rec.atmos) !== '' && rec.k4 && trim(rec.k4) !== '';
-    if (state.tab === 'ch71') return rec.ch71 && trim(rec.ch71) !== '';
-    if (state.tab === 'k4') return rec.k4 && trim(rec.k4) !== '';
-    return true;
-  }
-
-  function matchesFilters(rec) {
-    if (state.pref && rec.prefNorm !== state.pref) return false;
-    if (state.q) {
-      var hay = (rec.theater + ' ' + rec.address + ' ' + (rec.prefDisp||'')).toLowerCase();
-      if (hay.indexOf(state.q.toLowerCase()) === -1) return false;
-    }
-    if (state.chips['hasSeats']) {
-      if (!rec.seats || trim(rec.seats) === '' || rec.seats === '—') return false;
-    }
-    if (state.chips['over200']) {
-      var n = parseInt(String(rec.seats||'').replace(/[^0-9]/g,''), 10) || 0;
-      if (n < 200) return false;
-    }
-    return true;
-  }
-
-  function groupByPref(recs) {
-    var map = {};
-    for (var i=0;i<recs.length;i++) {
-      var k = recs[i].prefNorm || '（都道府県不明）';
-      if (!map[k]) map[k] = [];
-      map[k].push(recs[i]);
-    }
-    return map;
-  }
-
-  function badgeRow(rec) {
-    var badges = [];
-    if (rec.atmos && trim(rec.atmos) !== '') badges.push('🎬 Dolby Atmos：' + rec.atmos);
-    if (rec.k4 && trim(rec.k4) !== '') badges.push('✨ 4K：' + rec.k4);
-    if (rec.other && includes(rec.other, 'Dolby Cinema')) badges.push('🎥 Dolby Cinema');
-    if (!badges.length) return '';
-    var html = '<div class="badges">';
-    for (var i=0;i<badges.length;i++) html += '<span class="badge">' + badges[i] + '</span>';
-    html += '</div>';
-    return html;
-  }
-
-  function seatsLine(rec) {
-    var s = (rec.seats && trim(rec.seats) !== '') ? rec.seats : '—';
-    if (rec.atmos && trim(rec.atmos) !== '' && s !== '—') {
-      return '🎬 Dolby Atmos：' + rec.atmos + '（💺 座席数：' + s + '）';
-    }
-    return '💺 座席数：' + s;
-  }
-
-  function card(rec) {
-    var link = rec.url ? '<a class="btn" href="' + rec.url + '" target="_blank" rel="noopener">公式サイト</a>' : '';
-    var html = '<div class="card">'
-      + '<div class="title-row">'
-      +   '<div class="title">' + rec.theater + '</div>'
-      +   (badgeRow(rec) || '')
-      + '</div>'
-      + '<div class="meta">📍 ' + rec.address + '</div>'
-      + '<div class="meta">' + seatsLine(rec) + '</div>'
-      + link
-      + '</div>';
-    return html;
-  }
-
-  function counts() {
-    var cc = { all: 0, cinema: 0, atmos: 0, axk: 0, ch71: 0, k4: 0 };
-    for (var i=0;i<data.length;i++) {
-      var r = data[i];
-      cc.all++;
-      if (r.other && includes(r.other, 'Dolby Cinema')) cc.cinema++;
-      if (r.atmos && trim(r.atmos) !== '') cc.atmos++;
-      if (r.atmos && trim(r.atmos) !== '' && r.k4 && trim(r.k4) !== '') cc.axk++;
-      if (r.ch71 && trim(r.ch71) !== '') cc.ch71++;
-      if (r.k4 && trim(r.k4) !== '') cc.k4++;
-    }
-    var ids = ['all','cinema','atmos','axk','ch71','k4'];
-    for (var j=0;j<ids.length;j++) {
-      var el = document.getElementById('count-' + ids[j]);
-      if (el) el.textContent = '(' + cc[ids[j]] + ')';
-    }
-  }
-
-  function render() {
-    counts();
-    var recs = [];
-    for (var i=0;i<data.length;i++) {
-      if (matchesTab(data[i]) && matchesFilters(data[i])) recs.push(data[i]);
-    }
-    var groups = groupByPref(recs);
-    var content = document.getElementById('content');
-    var html = '';
-    for (var i=0;i<prefects.length;i++) {
-      var key = prefects[i].norm;
-      var arr = groups[key];
-      if (!arr || !arr.length) continue;
-      html += '<section class="group"><h2>' + prefects[i].disp + '</h2><div class="grid">';
-      for (var k=0;k<arr.length;k++) html += card(arr[k]);
-      html += '</div></section>';
-    }
-    if (!html) html = '<div class="empty">該当する劇場がありません。フィルター条件を変更してください。</div>';
-    content.innerHTML = html;
-  }
-
-  render();
-});
-</script>
-</body>
-</html>
