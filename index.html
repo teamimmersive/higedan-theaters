@@ -80,16 +80,56 @@
 </footer>
 <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
 <script>
-  <!-- Papa Parse（CSVを安全にパース） -->
+<!-- Papa Parse（CSVを安全にパース） -->
 <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"
         integrity="sha384-qk7n9x2x8qN0Tq6D7y7ZpC8xH0Qq5mJx0kqQZ7ZqK7v6sM1b8X8T3l8Y8qZq0p7L"
         crossorigin="anonymous"></script>
 
 <script>
-// ★ここはあなたのCSV公開URL（そのまま使えます）
-var SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vShtDnZUCsyJKxq1mUB8Hgid98ngAWYAcgEwhCg2MaV3cqbmyRsEsbr2eyZ8XFdyW00ZdsB2BkJhVuC/pub?gid=1453087675&single=true&output=csv";
+// ★あなたのCSV公開URL（このままでOK）
+var SHEET_CSV_URL =
+  "https://docs.google.com/spreadsheets/d/e/2PACX-1vShtDnZUCsyJKxq1mUB8Hgid98ngAWYAcgEwhCg2MaV3cqbmyRsEsbr2eyZ8XFdyW00ZdsB2BkJhVuC/pub?gid=1453087675&single=true&output=csv";
 
-// 内部判定用：都道府県正規化
+// ---- デバッグ用の小さな表示（失敗時に画面上へ出す） ----
+function showDebug(msg) {
+  var box = document.getElementById('csv-debug');
+  if (!box) {
+    box = document.createElement('div');
+    box.id = 'csv-debug';
+    box.style.cssText = 'position:fixed;left:8px;bottom:8px;max-width:92vw;background:#1f2937;color:#fff;padding:8px 10px;border-radius:8px;font:12px/1.4 system-ui, -apple-system;z-index:9999;opacity:.95';
+    document.body.appendChild(box);
+  }
+  box.textContent = '[CSV] ' + msg;
+}
+
+// ---- ヘッダーを頑丈にマッチ（全角/半角空白、大小、別名対応） ----
+function normalizeHeader(s){
+  return String(s||'').replace(/\u3000/g,' ').trim().toLowerCase();
+}
+function findIndexByAliases(header, aliases){
+  var h = header.map(normalizeHeader);
+  for (var i=0;i<aliases.length;i++){
+    var key = normalizeHeader(aliases[i]);
+    var idx = h.indexOf(key);
+    if (idx !== -1) return idx;
+  }
+  return -1;
+}
+
+// 別名テーブル（必要ならここに足せます）
+var ALIAS = {
+  pref:  ["都道府県","都道府県名","県名","道府県","都道府県 "],
+  name:  ["劇場名","映画館","映画館名","シアター","館名"],
+  addr:  ["住所","所在地","住所1","住所_全文","Address"],
+  url:   ["URL","url","リンク","公式","公式サイト","サイトURL"],
+  atmos: ["Dolby Atmos","Atmos","ドルビーアトモス","アトモス"],
+  ch71:  ["7.1ch","7.1 ch","7.1CH","7_1ch","7-1ch"],
+  k4:    ["4K","4Ｋ","４Ｋ","4k"],
+  other: ["other","備考","メモ","注記"],
+  seats: ["座席数","席数","シート数","キャパ","収容人数"]
+};
+
+// 表示/内部名
 function normalizePref(p) {
   p = String(p||"").trim();
   if (!p) return "";
@@ -99,7 +139,6 @@ function normalizePref(p) {
   if (["都","道","府","県"].indexOf(last) === -1 && p !== "北海道") return p + "県";
   return p;
 }
-// 表示用：接尾辞を削除（北海道はそのまま／東京都→東京 等）
 function displayPref(prefNorm) {
   if (!prefNorm) return "";
   if (prefNorm === "北海道") return "北海道";
@@ -111,40 +150,40 @@ function displayPref(prefNorm) {
   return prefNorm;
 }
 
-// CSV→データ構築
+// データ構築
 function buildDataFromRows(header, rows) {
-  function idx(name){ var k=header.indexOf(name); return k===-1?null:k; }
-  var ix = {
-    pref:  idx("都道府県"),
-    name:  idx("劇場名"),
-    addr:  idx("住所"),
-    url:   idx("URL"),
-    atmos: idx("Dolby Atmos"),
-    ch71:  idx("7.1ch"),
-    k4:    idx("4K"),
-    other: idx("other"),
-    seats: idx("座席数")
-  };
+  var idxPref  = findIndexByAliases(header, ALIAS.pref);
+  var idxName  = findIndexByAliases(header, ALIAS.name);
+  var idxAddr  = findIndexByAliases(header, ALIAS.addr);
+  var idxURL   = findIndexByAliases(header, ALIAS.url);
+  var idxAtmos = findIndexByAliases(header, ALIAS.atmos);
+  var idx71    = findIndexByAliases(header, ALIAS.ch71);
+  var idx4K    = findIndexByAliases(header, ALIAS.k4);
+  var idxOther = findIndexByAliases(header, ALIAS.other);
+  var idxSeats = findIndexByAliases(header, ALIAS.seats);
+
+  if (idxPref === -1 || idxName === -1) {
+    showDebug("必須列が見つかりません（都道府県 or 劇場名）。先頭行の列名を確認してください。");
+  }
 
   var data = [];
   for (var i=0;i<rows.length;i++){
     var r = rows[i];
-    var prefNorm = normalizePref(ix.pref!=null? r[ix.pref] : "");
+    var prefNorm = normalizePref(idxPref>-1? r[idxPref] : "");
     data.push({
       prefNorm: prefNorm,
       prefDisp: displayPref(prefNorm),
-      theater:  ix.name!=null?  String(r[ix.name]||"").trim()  : "",
-      address:  ix.addr!=null?  String(r[ix.addr]||"").trim()  : "",
-      url:      ix.url!=null?   String(r[ix.url]||"").trim()   : "",
-      atmos:    ix.atmos!=null? String(r[ix.atmos]||"").trim() : "",
-      ch71:     ix.ch71!=null?  String(r[ix.ch71]||"").trim()  : "",
-      k4:       ix.k4!=null?    String(r[ix.k4]||"").trim()    : "",
-      other:    ix.other!=null? String(r[ix.other]||"").trim() : "",
-      seats:    ix.seats!=null? String(r[ix.seats]||"").trim() : ""
+      theater:  idxName>-1?  String(r[idxName]||"").trim()  : "",
+      address:  idxAddr>-1?  String(r[idxAddr]||"").trim()  : "",
+      url:      idxURL>-1?   String(r[idxURL]||"").trim()   : "",
+      atmos:    idxAtmos>-1? String(r[idxAtmos]||"").trim() : "",
+      ch71:     idx71>-1?    String(r[idx71]||"").trim()    : "",
+      k4:       idx4K>-1?    String(r[idx4K]||"").trim()    : "",
+      other:    idxOther>-1? String(r[idxOther]||"").trim() : "",
+      seats:    idxSeats>-1? String(r[idxSeats]||"").trim() : ""
     });
   }
 
-  // 全国エリア順（出現したものだけ採用）
   var prefOrder = ["北海道","青森県","岩手県","宮城県","秋田県","山形県","福島県",
     "茨城県","栃木県","群馬県","埼玉県","千葉県","東京都","神奈川県",
     "新潟県","山梨県","長野県",
@@ -160,35 +199,44 @@ function buildDataFromRows(header, rows) {
   for (var k=0;k<prefOrder.length;k++){ var p=prefOrder[k]; if (present[p]) prefects.push({norm:p, disp:displayPref(p)}); }
   // 順序にない表記があれば最後に追加
   var extra = {};
-  for (var j2=0;j2<data.length;j2++){ var pn=data[j2].prefNorm; if (pn && !present["#"+pn] && prefOrder.indexOf(pn)===-1){ prefects.push({norm:pn, disp:displayPref(pn)}); present["#"+pn]=true; } }
-
+  for (var j2=0;j2<data.length;j2++){
+    var pn=data[j2].prefNorm;
+    if (pn && !extra[pn] && prefOrder.indexOf(pn)===-1){
+      prefects.push({norm:pn, disp:displayPref(pn)}); extra[pn]=true;
+    }
+  }
   return {data:data, prefects:prefects};
 }
 
-// CSV取得→パース→window.data/prefectsへ代入→render()呼び出し
+// 読み込み実行
 (function(){
   function run(){
     Papa.parse(SHEET_CSV_URL, {
       download: true,
-      header: true,          // 1行目をヘッダーとして扱う
+      header: false,         // ← 公開CSVの1行目が見出しなら header:false で自前処理
       skipEmptyLines: true,
       complete: function(res){
-        var header = res.meta.fields || [];
         var rows = res.data || [];
-        var built = buildDataFromRows(header, rows);
+        if (!rows.length){ showDebug("CSVが空です"); return; }
+        var header = rows[0];              // 先頭行を見出しとして扱う
+        var body   = rows.slice(1);
+        var built  = buildDataFromRows(header, body);
+
         window.data = built.data;
         window.prefects = built.prefects;
 
-        // 既存の render() を呼ぶ（未定義なら少し待って再試行）
+        showDebug("読み込み成功: " + built.data.length + "件（都道府県: " + built.prefects.length + "）");
+
+        // 既存 render() を呼ぶ（未定義なら少し待って再試行）
         (function tryRender(n){
           if (typeof window.render === "function") return window.render();
-          if ((n||0) < 10) setTimeout(function(){ tryRender((n||0)+1); }, 200);
-          else console.error("render() が見つかりません");
+          if ((n||0) < 15) setTimeout(function(){ tryRender((n||0)+1); }, 200);
+          else showDebug("render() が見つかりません");
         })();
       },
       error: function(err){
         console.error("CSV読込エラー:", err);
-        alert("CSVの公開URLや列名を確認してください。");
+        showDebug("CSV読込エラー。URLや公開設定を確認してください。");
       }
     });
   }
@@ -196,8 +244,7 @@ function buildDataFromRows(header, rows) {
   else run();
 })();
 </script>
-
-<script>
+  
 
 /* 以下：描画ロジック（省略なし） */
 document.addEventListener('DOMContentLoaded', function() {
