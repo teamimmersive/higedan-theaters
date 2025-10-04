@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>（設定から自動上書き）</title>
+<title>劇場版 OFFICIAL HIGE DANDISM LIVE at STADIUM 2025　映画館リスト</title>
 <style>
   :root { --bg:#0c0f14; --card:#12161d; --text:#e7ebf3; --muted:#8a93a6; --accent:#4f8cff; --border:#222838; --chip:#1a1f2b; }
   *{box-sizing:border-box}
@@ -35,14 +35,14 @@
 <body>
 
 <header>
-  <h1 id="pageTitleH1">（設定から自動上書き）</h1>
+  <h1>劇場版 OFFICIAL HIGE DANDISM LIVE at STADIUM 2025　映画館リスト</h1>
   <div class="tabs" id="tabs">
     <button type="button" class="tab active" data-tab="all">ALL</button>
     <button type="button" class="tab" data-tab="cinema">Dolby Cinema</button>
     <button type="button" class="tab" data-tab="atmos">Dolby Atmos</button>
     <button type="button" class="tab" data-tab="axk">Dolby Atmos×4K</button>
     <button type="button" class="tab" data-tab="ch71">7.1ch</button>
-    <button type="button" class="tab" data-tab="k4">4K</button>
+    <!-- 4K 単独タブは表示しない -->
   </div>
 </header>
 
@@ -58,23 +58,18 @@
 </main>
 
 <footer>
-  ※ タブ（ALL / Dolby Cinema / Dolby Atmos / Dolby Atmos×4K / 7.1ch / 4K）と、エリア・検索で絞り込みできます。
+  ※ タブ（ALL / Dolby Cinema / Dolby Atmos / Dolby Atmos×4K / 7.1ch）と、エリア・検索で絞り込みできます。
 </footer>
 
 <!-- Papa Parse -->
 <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js" crossorigin="anonymous"></script>
 
 <script>
-/* ====== 設定（ここだけ変えればOK） ====== */
-var PAGE_TITLE = "劇場版 OFFICIAL HIGE DANDISM LIVE at STADIUM 2025　映画館リスト";        // ← お好きなタイトルに変更
+/* ====== 設定 ====== */
 var SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vShtDnZUCsyJKxq1mUB8Hgid98ngAWYAcgEwhCg2MaV3cqbmyRsEsbr2eyZ8XFdyW00ZdsB2BkJhVuC/pub?gid=1453087675&single=true&output=csv";
-var OVERRIDE_HEADER = { pref:"エリア", cinema:"Dolby Cinema" }; // 見出し名の強制マップ
+var OVERRIDE_HEADER = { pref:"エリア", cinema:"Dolby Cinema" };
 
-// タイトル反映
-document.title = PAGE_TITLE;
-document.getElementById("pageTitleH1").textContent = PAGE_TITLE;
-
-/* ====== 共通ユーティリティ ====== */
+/* ====== ユーティリティ ====== */
 function dbg(msg){
   var el=document.getElementById('csv-debug');
   if(!el){ el=document.createElement('div'); el.id='csv-debug'; document.body.appendChild(el); }
@@ -117,7 +112,7 @@ function displayPref(pref){
   if(pref==="東京都") return "東京";
   if(pref==="大阪府") return "大阪";
   if(pref==="京都府") return "京都";
-  var last=pref.charAt(pref.length-1);
+  var last=pref.charAt(p.length-1);
   if(["都","道","府","県"].indexOf(last)!==-1) return pref.slice(0,-1);
   return pref;
 }
@@ -144,13 +139,13 @@ var ALIAS={
 function idxByName(header,name){ var H=header.map(nHead); var i=H.indexOf(nHead(name)); return i>=0? i : -1; }
 function idxSmart(header,key){
   if (OVERRIDE_HEADER && OVERRIDE_HEADER[key]) {
-    var i=idxByName(header, OVERRIDE_HEADER[key]);  // 正規化比較
+    var i=idxByName(header, OVERRIDE_HEADER[key]);
     if (i!==-1) return i;
   }
   return findIdx(header, ALIAS[key]);
 }
 
-/* ====== Dolby系の値をパース ====== */
+/* ====== Dolby系の値パース ====== */
 // Dolby Cinema：有無＋スクリーン番号（E列）
 function parseDolbyCinema(v){
   let s = toHalfWidthDigits(String(v||"").trim());
@@ -163,17 +158,13 @@ function parseDolbyCinema(v){
   if (/dolby\s*cinema/i.test(t) || /ドルビーシネマ/.test(s)) return { flag:true, screen:null };
   return { flag:false, screen:null };
 }
-
-// Dolby Atmos：最初に見つかった数字をスクリーン番号として表示（なければ値そのまま）
+// Dolby Atmos：最初の数字をスクリーン番号として表示（なければ値をそのまま）
 function parseAtmosScreen(v){
   let s = toHalfWidthDigits(String(v||"").trim());
   if (!s) return { has:false, screen:null, raw:"" };
-  // 純数 → スクリーン番号
   if (/^\d{1,3}$/.test(s)) return { has:true, screen:String(parseInt(s,10)), raw:s };
-  // 文字列中の番号
   const m = s.match(/(\d{1,3})/);
   if (m) return { has:true, screen:String(parseInt(m[1],10)), raw:s };
-  // 数字が無いが何かしら指定あり
   return { has:true, screen:null, raw:s };
 }
 
@@ -188,14 +179,13 @@ function buildDataFromRows(header, rows){
   var i4K    = idxSmart(header,"k4");
   var iOther = idxSmart(header,"other");
   var iSeats = idxSmart(header,"seats");
-  var iCinema= idxSmart(header,"cinema");   // Dolby Cinema（E列想定）
+  var iCinema= idxSmart(header,"cinema");
 
   var data=[], present={};
 
   for(var r=0;r<rows.length;r++){
     var row=rows[r]||[];
 
-    // エリア → 住所から推定の順で都道府県確定
     var raw = (iPref>-1? row[iPref] : "");
     var rawTrim = clean(raw).replace(/\s|\u3000/g,"");
     var isRegion = REGIONS.indexOf(rawTrim)!==-1;
@@ -205,12 +195,10 @@ function buildDataFromRows(header, rows){
       prefNorm = normalizePref(guess);
     }
 
-    // Dolby Cinema（有無 + スクリーン番号）
     var cinemaInfo = { flag:false, screen:null };
     if (iCinema>-1) cinemaInfo = parseDolbyCinema(row[iCinema]);
-    else if (iOther>-1) cinemaInfo = parseDolbyCinema(row[iOther]); // other保険
+    else if (iOther>-1) cinemaInfo = parseDolbyCinema(row[iOther]);
 
-    // Dolby Atmos（スクリーン番号ラベル化）
     var atmosRaw = iAt>-1 ? clean(row[iAt]) : "";
     var atmosInfo = parseAtmosScreen(atmosRaw);
 
@@ -220,8 +208,8 @@ function buildDataFromRows(header, rows){
       theater : iName>-1?  clean(row[iName])  : "",
       address : iAddr>-1?  clean(row[iAddr])  : "",
       url     : iURL>-1?   clean(row[iURL])   : "",
-      atmos   : atmosRaw,                  // 元の値（フィルタ用に残す）
-      atmosScreen: atmosInfo.screen,       // 例: "8"
+      atmos   : atmosRaw,                 // 生値（フィルタ用に保持）
+      atmosScreen: atmosInfo.screen,      // スクリーン番号
       ch71    : i71>-1?    clean(row[i71])    : "",
       k4      : i4K>-1?    clean(row[i4K])    : "",
       other   : iOther>-1? clean(row[iOther]) : "",
@@ -285,11 +273,11 @@ function initUI(){
 function nz(v){ return v && String(v).replace(/\s+/g,"")!==""; }
 function matchTab(rec){
   if(STATE.tab==="all")   return true;
-  if(STATE.tab==="cinema")return !!rec.cinema;                    // Dolby Cinema 列で判定
-  if(STATE.tab==="atmos") return nz(rec.atmos);                   // Atmosは値があれば対象
-  if(STATE.tab==="axk")   return nz(rec.atmos) && nz(rec.k4);
+  if(STATE.tab==="cinema")return !!rec.cinema;
+  if(STATE.tab==="atmos") return nz(rec.atmos);
+  if(STATE.tab==="axk")   return nz(rec.atmos) && nz(rec.k4); // Atmos×4K は残す
   if(STATE.tab==="ch71")  return nz(rec.ch71);
-  if(STATE.tab==="k4")    return nz(rec.k4);
+  // 「4K単独」タブは無し
   return true;
 }
 function matchFilters(rec){
@@ -300,24 +288,32 @@ function matchFilters(rec){
   }
   return true;
 }
+
+/* ====== 表示 ====== */
 function badgeRow(rec){
   var b=[];
+  // Dolby Cinema（スクリーン番号があれば表示）
   if(rec.cinema){
-    var label = rec.cinemaScreen ? `🎥 Dolby Cinema（スクリーン${rec.cinemaScreen}）` : "🎥 Dolby Cinema";
-    b.push(label);
+    var labelC = rec.cinemaScreen ? `🎥 Dolby Cinema（スクリーン${rec.cinemaScreen}）` : "🎥 Dolby Cinema";
+    b.push(labelC);
   }
-  if(nz(rec.atmos)){
-    var labelA = rec.atmosScreen ? `🎬 Dolby Atmos（スクリーン${rec.atmosScreen}）` : `🎬 Dolby Atmos：${rec.atmos}`;
+  // Atmos × 4K のみ 4Kバッジを含む表現に統一
+  if(nz(rec.atmos) && nz(rec.k4)){
+    var labelAXK = rec.atmosScreen ? `🎬 Dolby Atmos×4K（スクリーン${rec.atmosScreen}）` : `🎬 Dolby Atmos×4K`;
+    b.push(labelAXK);
+  } else if(nz(rec.atmos)){
+    var labelA = rec.atmosScreen ? `🎬 Dolby Atmos（スクリーン${rec.atmosScreen}）` : `🎬 Dolby Atmos`;
     b.push(labelA);
   }
-  if(nz(rec.k4))    b.push("✨ 4K");
+  // 4K単独はバッジに出さない
   if(nz(rec.ch71))  b.push("🔊 7.1ch");
+
   if(!b.length) return "";
-  var h='<div class="badges">'; for(var i=0;i<b.length;i++){ h+='<span class="badge">'+b[i]+'</span>'; } h+='</div>'; return h;
+  var h='<div class="badges">'; for(var i=0;i<b.length;i++){ h+='<span class="badge">'+b[i]+'</span>'; } h+='</div>';
+  return h;
 }
 function seatsLine(rec){
   var s=(rec.seats && String(rec.seats).trim()!=="")? rec.seats : "—";
-  // Atmos はここでは座席と分けて、バッジで詳しく表現
   return '💺 座席数：'+s;
 }
 function card(rec){
