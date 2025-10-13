@@ -32,6 +32,14 @@
   #csv-debug{position:fixed;left:8px;bottom:8px;max-width:92vw;background:#1f2937;color:#fff;padding:8px 10px;border-radius:8px;font:12px/1.4 system-ui,-apple-system;z-index:9999;opacity:.95;white-space:pre-wrap;display:none}
   .skeleton{height:96px;background:linear-gradient(90deg,#151a22,#1a2030,#151a22);background-size:200% 100%;animation:sk 1.2s infinite}
   @keyframes sk{0%{background-position:0 0}100%{background-position:200% 0}}
+.notice {
+  background: #1e2430;
+  color: #e0e5ef;
+  padding: 10px 14px;
+  border-bottom: 1px solid #2a3242;
+  font-size: 14px;
+  line-height: 1.5;
+}
 </style>
 </head>
 <body>
@@ -47,7 +55,10 @@
     <!-- 4K 単独タブは非表示 -->
   </div>
 </header>
-
+<div class="notice">
+  こちらは公式サイト、映画館への問い合わせ、オンライン検索などで独自に調査いたしました。<br>
+  詳細については映画館に確認いただけたらと思います！
+</div>
 <div class="filters">
   <div class="filter-row">
     <select id="prefSelect"><option value="">エリア（すべて）</option></select>
